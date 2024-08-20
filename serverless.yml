@@ -1,16 +1,57 @@
-# "org" ensures this Service is used with the correct Serverless Framework Access Key.
-org: rjdrk25
-# "service" is the name of this project. This will also be added to your AWS resource names.
 service: project-sls-sqs
+
+package:
+  individually: true
+  patterns:
+    - "!*/**"
+    - "!**"
 
 provider:
   name: aws
   runtime: nodejs20.x
+  region: us-east-1
+  environment:
+    REGION: ${self:provider.region}
+    PENDING_ORDER_QUEUE:
+      Ref: PendingOrdersQueue
+    PENDING_ORDER_QUEUE_NAME: PendingOrdersQueue
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "sqs:SendMessage"
+      Resource: "arn:aws:sqs:${self:provider.region}:*:PendingOrdersQueue"
 
 functions:
-  hello:
-    handler: handler.hello
+  pedido:
+    handler: pedido/handler.pedido
+    layers:
+      - arn:aws:lambda:us-east-1:733354705166:layer:aws-sdk:1
+    package:
+      patterns:
+        - "pedido/handler.js"
     events:
-      - httpApi:
-          path: /
-          method: get
+      - http:
+          path: pedido
+          method: POST
+          request:
+            schemas:
+              application/json: ${file(schemas/user-schema.json)}
+  prepararPedido:
+    handler: preparar/handler.prepararPedido
+    package:
+      patterns:
+        - "preparar/handler.js"
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - PendingOrdersQueue
+              - Arn
+          batchSize: 1
+
+resources:
+  Resources:
+    PendingOrdersQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: "PendingOrdersQueue"

@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "User",
+  "type": "object",
+  "required": ["name", "address", "pizzas"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The person's first name."
+    },
+    "address": {
+      "type": "string",
+      "description": "The person's address."
+    },
+    "pizzas": {
+      "description": "pizza type.",
+      "type": "array"      
+    }
+  }
+}
