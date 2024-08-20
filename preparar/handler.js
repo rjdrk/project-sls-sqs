@@ -4,7 +4,7 @@ module.exports.prepararPedido = (event, context, callback) => {
   let params = JSON.parse(event.Records[0].body);
   let orderId = params.orderId;
 	
-  console.log(`Pedido no ${orderId} fue enviado al cocina`);
+  console.log(`Pedido No. ${orderId} fue enviado a cocina`);
 
 	callback();
 };
