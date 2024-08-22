@@ -15,12 +15,16 @@ provider:
     PENDING_ORDER_QUEUE:
       Ref: PendingOrdersQueue
     PENDING_ORDER_QUEUE_NAME: PendingOrdersQueue
+    COMPLETED_ORDER_TABLE: CompletedOrderTable
   iamRoleStatements:
     - Effect: "Allow"
       Action:
         - "sqs:SendMessage"
-      Resource: "arn:aws:sqs:${self:provider.region}:*:PendingOrdersQueue"
-
+      Resource:
+        - "arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.PENDING_ORDER_QUEUE_NAME}"
+    - Effect: Allow
+      Action: 'dynamodb:*'
+      Resource: arn:aws:dynamodb:us-east-1:733354705166:table/CompletedOrderTable
 functions:
   pedido:
     handler: pedido/handler.pedido
@@ -38,9 +42,12 @@ functions:
               application/json: ${file(schemas/user-schema.json)}
   prepararPedido:
     handler: preparar/handler.prepararPedido
+    layers:
+      - arn:aws:lambda:us-east-1:733354705166:layer:aws-sdk:1
     package:
       patterns:
         - "preparar/handler.js"
+        - "preparar/orderMetadataManager.js"
     events:
       - sqs:
           arn:
@@ -48,10 +55,53 @@ functions:
               - PendingOrdersQueue
               - Arn
           batchSize: 1
-
+  enviarPedido:
+    handler: enviarPedido/handler.enviarPedido
+    package:
+      patterns:
+        - "enviarPedido/handler.js"
+    events:
+      - stream:
+          type: dynamodb
+          batchSize: 1
+          startingPosting: LATEST
+          arn:
+            Fn::GetAtt: 
+              - CompletedOrdersTable
+              - StreamArn
+  verPedido: 
+    handler: verPedido/handler.verPedido
+    layers:
+      - arn:aws:lambda:us-east-1:733354705166:layer:aws-sdk:1
+    package:
+      patterns:
+        - "verPedido/handler.js"
+    events:
+      - http:
+          path: pedido/{id}
+          method: GET
+          request:
+            parameters:
+              paths:
+                id: true
 resources:
   Resources:
     PendingOrdersQueue:
       Type: "AWS::SQS::Queue"
       Properties:
         QueueName: "PendingOrdersQueue"
+    CompletedOrdersTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: "orderId"
+          AttributeType: "S"
+        KeySchema:
+        - AttributeName: "orderId"
+          KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.COMPLETED_ORDER_TABLE}
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE

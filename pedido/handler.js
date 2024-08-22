@@ -8,16 +8,27 @@ module.exports.pedido = async (event) => {
   console.log('Procesando pedido');
   let orderId = randomUUID();
 
+  const body = JSON.parse(event.body);
+  
+  const order = {
+		orderId,
+		name: body.name,
+		address: body.address,
+		pizzas: body.pizzas,
+		timestamp: Date.now()
+	};
+
   const params = {
-    MessageBody: JSON.stringify({ orderId, postParams:JSON.parse(event.body)  }),
+    MessageBody: JSON.stringify(order),
     QueueUrl: QUEUE_URL
   };
+
   try {
     const data = await sqs.sendMessage(params).promise();
+    
     const message = {
-      orderId,
-      messageId: data.MessageId,
-      event: event
+      order,
+      messageId: data.MessageId
     };
 
     return {
